@@ -162,7 +162,7 @@ char *decoder(int modo)
     free(decoded);
 }
 
-int readPhoto(int modo, int sleepTime)
+int readPhoto(int modo, float sleepTime)
 {
     printf("Digite el nombre del archivo por guardar:\n");
     char *filename = malloc(sizeof(char) * 800);
@@ -261,9 +261,9 @@ int main()
             switch (modo)
             {
             case 1:
-                int sleepTime;
+                float sleepTime;
                 printf("Digite el tiempo de espera entre carga de datos en segundos\n");
-                scanf(" %d", &sleepTime);
+                scanf(" %f", &sleepTime);
                 readPhoto(1, sleepTime);
                 break;
             case 2:
@@ -274,7 +274,7 @@ int main()
             }
             break;
         case 2:
-            printf("Aqui se lee");
+            printf("Aqui se lee\n");
             break;
         case 0:
             exit(0);
