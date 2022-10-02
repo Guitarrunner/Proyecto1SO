@@ -78,6 +78,11 @@ char *decoder(int modo)
     printf("Digite la clave de decodificacion:\n");
     char *key = malloc(sizeof(char) * MAX_LEN);
     fgets(key, MAX_LEN, stdin);
+    char *p;
+    if ((p = strchr(key, '\n')) != NULL)
+    {
+        *p = '\0';
+    }
 
     //-----------------------------------------------------------------------------------------
     // ESTE CHUNK DEBE DE VENIR DE LA LECTURA DE DATOS, 10 es placeholder, deberia de aumentar segun se lee mas
