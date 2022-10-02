@@ -167,14 +167,25 @@ int readPhoto(int modo, int sleepTime)
     printf("Digite el nombre del archivo por guardar:\n");
     char *filename = malloc(sizeof(char) * 800);
     fgets(filename, 800, stdin);
-    char *data = stbi_load("monster.png", &width, &height, &comp, 0);
+    char *p;
+    if ((p = strchr(filename, '\n')) != NULL)
+    {
+        *p = '\0';
+    }
+    char *data = stbi_load(filename, &width, &height, &comp, 0);
     if (data)
     {
         createSM();
         const long pixels = width * height;
         int len = pixels * comp;
         PIXELS = len;
-        char *key = "secret";
+        printf("Digite la llave para codificar:\n");
+        char *key = malloc(sizeof(char) * 800);
+        fgets(key, 800, stdin);
+        if ((p = strchr(key, '\n')) != NULL)
+        {
+            *p = '\0';
+        }
         int keyLen = strlen(key);
         int contador = 0;
         for (int i = 0; i < (len); i = i + 1)
@@ -193,8 +204,11 @@ int readPhoto(int modo, int sleepTime)
         int pag = 0;
         for (int i = 0; i < (len + 10); i = i + 10)
         {
-            if(modo==1)sleep(sleepTime);
-            if(modo==2)getc(stdin);;
+            if (modo == 1)
+                sleep(sleepTime);
+            if (modo == 2)
+                getc(stdin);
+            ;
             char chunkPix[50] = "";
             char s1[3];
             for (int j = 0; j < 10; j++)
@@ -230,8 +244,46 @@ int readPhoto(int modo, int sleepTime)
 }
 int main()
 {
-    readPhoto(1, 1);
-    readPhoto(2, 0);
+
+    int opcion = 0;
+    int modo = 0;
+
+    system("clear");
+    while (opcion = !0)
+    {
+        printf("Bienvenid@ al servidor de memoria compartida, para cargar una imagen digite 1, digite 2 para leer una imagen o 0 para salir\n");
+        scanf(" %d", &opcion);
+        switch (opcion)
+        {
+        case 1:
+            printf("Para cargar una imagen en modo automatico presione 1, para manual presione 2\n");
+            scanf(" %d", &modo);
+            switch (modo)
+            {
+            case 1:
+                int sleepTime;
+                printf("Digite el tiempo de espera entre carga de datos en segundos\n");
+                scanf(" %d", &sleepTime);
+                readPhoto(1, sleepTime);
+                break;
+            case 2:
+                int res = readPhoto(2, 0);
+                break;
+            default:
+                break;
+            }
+            break;
+        case 2:
+            printf("Aqui se lee");
+            break;
+        case 0:
+            exit(0);
+        default:
+            break;
+        }
+    }
+
+    printf("Gracias!\n");
 
     return 0;
 }

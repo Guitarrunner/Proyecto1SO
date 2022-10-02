@@ -36,7 +36,12 @@ int main(){
     printf("Digite el nombre del archivo por guardar:\n");
     char *filename = malloc(sizeof(char) * 800);
     fgets(filename, 800, stdin);
+    char *p;
+    if ((p = strchr(filename, '\n')) != NULL) { 
+    *p = '\0'; 
+}
     char *data = stbi_load(filename, &width, &height, &comp, 0);
+
     const long pixels = width * height;
     int len = pixels * comp;
 
