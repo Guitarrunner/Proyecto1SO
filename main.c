@@ -1,6 +1,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 #include <stdbool.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -16,12 +18,20 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <string.h>
+#include <math.h>
 
 #define SMO_NAME "SHAREDMEM"
 #define SMO_SIZE 1000000
+#define MAX_LEN 800
 
-int offset = 0;
+// VARIABLES GLOBALES
+//  Size buffer reconstruir imagen
+int SIZE_BUFFER = 0;
+// Pixeles en imagen
+int PIXELS = 0;
+int width, height, comp;
 
+// Cifrado usando XOR
 char *XORCipher(char *data, char *key, int dataLen, int keyLen)
 {
     char *output = (char *)malloc(sizeof(char) * dataLen);
@@ -34,78 +44,23 @@ char *XORCipher(char *data, char *key, int dataLen, int keyLen)
     return output;
 }
 
-char *encoder(char *codePart, char *key)
+//-----------------------------------------------------------------------------------------
+// Lee lo que haya en memoria
+int readBuf(int page)
 {
-    char *response = XORCipher(codePart, key, strlen(codePart), strlen(key));
-    return response;
-}
-
-int readBuf()
-{
-    char *ptr;
-    struct stat smo;
-
-    int fd = shm_open(SMO_NAME, O_RDONLY, 00400);
-    if (fd == -1)
-    {
-        printf("Error en abrir memoria %s\n", strerror(errno));
-        exit(1);
-    }
-
-    if (fstat(fd, &smo) == -1)
-    {
-        printf(" Error en busqueda de puntero \n");
-        exit(1);
-    }
-
-    ptr = mmap(NULL, smo.st_size, PROT_READ, MAP_SHARED, fd, 0);
-    if (ptr == MAP_FAILED)
-    {
-        printf("Error en lectura: %s\n", strerror(errno));
-        exit(1);
-    }
-
-    printf("Lo guardado en memoria: %s \n", ptr);
-
-    // Private key for crypt
-    char *key = "secret";
-    int keyLen = strlen(key);
-    int dataLen = strlen(ptr);
-    char *lastCoded = XORCipher(ptr, key, dataLen, keyLen);
-
-    printf("Codificando: %s \n", lastCoded);
-
-    close(fd);
+    // AQUI SE LEE
     return 0;
 }
 
-int writeBuf(char *buf, int page)
+//-----------------------------------------------------------------------------------------
+int writeBuf(char *buf, int pag, unsigned char *hora)
 {
-    int fd = shm_open(SMO_NAME, O_RDWR, 0);
-
-    if (fd == -1)
-    {
-        printf("Error en abrir de memoria");
-        exit(1);
-    }
-
-    char *ptr;
-
-    ptr = mmap(NULL, sizeof(buf), PROT_WRITE, MAP_SHARED, fd, 0);
-
-    if (ptr == MAP_FAILED)
-    {
-        printf("Error en escritura: %s\n", strerror(errno));
-        exit(1);
-    }
-    
-    memcpy(ptr + offset, buf, (int) sizeof(buf));
-    offset = offset + sizeof(buf);
-    close(fd);
+    // AQUI SE ESCRIBE
     return 0;
 }
 
-void createSM(int SIZE)
+// Crea la memoria compartida
+void createSM()
 {
     int fd = shm_open(SMO_NAME, O_CREAT | O_RDWR, 00600);
     if (fd == -1)
@@ -114,76 +69,169 @@ void createSM(int SIZE)
         exit(1);
     }
 
-    if (ftruncate(fd, SIZE) == -1)
-    {
-        printf("Error en asignacion de memoria");
-        exit(1);
-    }
     close(fd);
 }
 
-int readPhoto(void)
+// Decodificador
+char *decoder(int modo)
 {
-    // Image's variables
-    int width, height, comp;
-    unsigned char *data = stbi_load("ui.png", &width, &height, &comp, 0);
-    const long pixels = width * height;
+    printf("Digite la clave de decodificacion:\n");
+    char *key = malloc(sizeof(char) * MAX_LEN);
+    fgets(key, MAX_LEN, stdin);
 
-    createSM(pixels * 308);
-    if (data)
+    //-----------------------------------------------------------------------------------------
+    // ESTE CHUNK DEBE DE VENIR DE LA LECTURA DE DATOS, 10 es placeholder, deberia de aumentar segun se lee mas
+    char chunkPix[10];
+
+    int keyLen = strlen(key);
+    int dataLen = strlen(chunkPix);
+    char *decoded = XORCipher(chunkPix, key, dataLen, keyLen);
+
+    char img[SIZE_BUFFER];
+    int parcial = 0;
+    int count = 0;
+    bool found = false;
+    int space = 0;
+
+    // Lee suficiente como haya en chunkPix o toda la imagen si esta completa, la idea es que chunk pix vaya creciendo segun se lean mas partes
+    for (int i = 0; i < strlen(decoded) || space < SIZE_BUFFER; i = i + 1)
     {
-
-        printf("width = %d, height = %d, comp = %d (channels)\n", width, height, comp);
-        // Private key for crypt
-        char *key = "secret";
-        int keyLen = strlen(key);
-        // Index
-        int page = 0;
-        // Stop condition
-        int len = pixels * comp;
-        bool flag = true;
-        // Vars for encrypt
-        char chunkPix[22] = "";
-        char s2[2];
-        char s1[2];
-        for (int i = 0; i < (len + 10); i = i + 10)
+        if (decoded[i] == ',' || decoded[i] == 0)
         {
-            for (int j = 0; j < 10; j++)
+            if (parcial == 48)
+                parcial = 0;
+            img[space] = parcial;
+            space++;
+            parcial = 0;
+            count = 0;
+            found = false;
+        }
+        else
+        {
+            if (found == false)
             {
-                // Joins 10 pixels in one chunk
-                if (i + j < (len + len % 10))
+                if (decoded[i + 1] == ',')
                 {
-                    sprintf(s1, "%d", data[i + j]);
-                    strcat(chunkPix, s1);
+                    parcial = decoded[i];
+                    found = true;
+                    continue;
+                }
+                if (decoded[i] == '-')
+                {
+                    if (decoded[i + 2] == ',')
+                    {
+                        parcial = -1 * decoded[i + 1];
+                        found = true;
+                        continue;
+                    }
+                    if (decoded[i + 3] == ',')
+                    {
+                        parcial = -1 * (decoded[i + 2] * 10 + decoded[i + 1]);
+                        found = true;
+                        continue;
+                    }
+                    if (decoded[i + 4] == ',')
+                    {
+                        parcial = -1 * (decoded[i + 3] * 100 + decoded[i + 2] * 10 + decoded[i + 1]);
+                        found = true;
+                        continue;
+                    }
+                }
+                else
+                {
+                    if (decoded[i + 2] == ',')
+                    {
+                        parcial = decoded[i + 1] * 10 + decoded[i];
+                        found = true;
+                        continue;
+                    }
+                    if (decoded[i + 3] == ',')
+                    {
+                        parcial = decoded[i + 2] * 100 + decoded[i + 1] * 10 + decoded[i];
+                        found = true;
+                        continue;
+                    }
                 }
             }
-            sprintf(s2, "%d", page);
-            strcat(chunkPix, s2);
-            page = page + 1;
-            unsigned char *time = ("%s", __TIMESTAMP__);
-            int size = sizeof(chunkPix) + sizeof(time);
-            char final[size + 1];
-            // Adding time
-            // strcat(final, chunkPix);
-            // strcat(final, time);
-            int dataLen = strlen(chunkPix);
-            char *lastCoded = XORCipher(chunkPix, key, dataLen, keyLen);
-
-            writeBuf(lastCoded, page);
-
-            printf("%s\n\n", lastCoded);
-            // printf("%d\n", i);
-            page++;
         }
-
-        readBuf();
-        exit(1);
     }
-    return 0;
+
+    stbi_write_png("result.png", width, height, comp, img, width * comp);
+    stbi_image_free(decoded);
+
+    free(decoded);
 }
 
+int readPhoto(int modo, int sleepTime)
+{
+    printf("Digite el nombre del archivo por guardar:\n");
+    char *filename = malloc(sizeof(char) * 800);
+    fgets(filename, 800, stdin);
+    char *data = stbi_load("monster.png", &width, &height, &comp, 0);
+    if (data)
+    {
+        createSM();
+        const long pixels = width * height;
+        int len = pixels * comp;
+        PIXELS = len;
+        char *key = "secret";
+        int keyLen = strlen(key);
+        int contador = 0;
+        for (int i = 0; i < (len); i = i + 1)
+        {
+            if (data[i] < 0)
+                contador = contador + 1;
+            if (fabs(data[i]) >= 100)
+                contador = contador + 1;
+            if (fabs(data[i]) >= 10)
+                contador = contador + 1;
+            if (fabs(data[i]) >= 0)
+                contador = contador + 2;
+        }
+
+        SIZE_BUFFER = contador;
+        int pag = 0;
+        for (int i = 0; i < (len + 10); i = i + 10)
+        {
+            if(modo==1)sleep(sleepTime);
+            if(modo==2)getc(stdin);;
+            char chunkPix[50] = "";
+            char s1[3];
+            for (int j = 0; j < 10; j++)
+            {
+                // Une 10 pixeles por chunk
+                if (i + j < (len + len % 10))
+                {
+                    sprintf(s1, "%d,", data[i + j]);
+                    strcat(chunkPix, s1);
+                }
+                else
+                {
+                    continue;
+                }
+            }
+
+            // Agrega la pagina al chunk
+            pag = pag + 1;
+            // Adding time
+            unsigned char *time = ("%s", __TIMESTAMP__);
+
+            int dataLen = strlen(chunkPix);
+            char *chunkCodificado = XORCipher(chunkPix, key, dataLen, keyLen);
+
+            //-----------------------------------------------------------------------------------------
+            // writeBuf(chunkCodificado, pag, hora);
+            printf("Pagina: %d, archivo codificado %s\n", pag, chunkCodificado);
+        }
+        free(data);
+    }
+
+    return 0;
+}
 int main()
 {
-    readPhoto();
+    readPhoto(1, 1);
+    readPhoto(2, 0);
+
     return 0;
 }

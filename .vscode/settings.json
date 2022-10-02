@@ -2,6 +2,7 @@
     "files.associations": {
         "stb_image.h": "c",
         "types.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "math.h": "c"
     }
 }
